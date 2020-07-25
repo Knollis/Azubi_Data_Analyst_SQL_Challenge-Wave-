@@ -1,0 +1,192 @@
+-- First I create my schema
+CREATE SCHEMA IF NOT EXISTS wave;
+
+-- I use this to create my tables (users,transfers,agents,agent_transactions & wallets)
+CREATE TABLE users (
+u_id integer PRIMARY KEY,
+name text NOT NULL,
+mobile text NOT NULL,
+wallet_id integer NOT NULL,
+when_created timestamp without time zone NOT NULL
+
+);
+-- I use this to populate my tables
+INSERT INTO users
+(u_id, 
+name, 
+mobile, 
+wallet_id, 
+when_created )
+VALUES
+('1', 
+'Ntow', 
+'02443456784',
+'56784',
+'2008-01-19 03:14:07');
+
+-- I repeat the process for the next couple of tables
+CREATE TABLE transfers (
+transfer_id integer PRIMARY KEY,
+u_id integer NOT NULL,
+source_wallet_id integer NOT NULL,
+dest_wallet_id integer NOT NULL,
+send_amount_currency text NOT NULL,
+send_amount_scalar numeric NOT NULL,
+receive_amount_currency text NOT NULL,
+receive_amount_scalar numeric NOT NULL,
+kind text NOT NULL,
+dest_mobile text,
+dest_merchant_id integer,
+when_created timestamp without time zone NOT NULL
+
+);
+
+INSERT INTO transfers
+(transfer_id,
+u_id,
+source_wallet_id,
+dest_wallet_id ,
+send_amount_currency,
+send_amount_scalar,
+receive_amount_currency,
+receive_amount_scalar,
+kind,
+dest_mobile,
+dest_merchant_id,
+when_created )
+VALUES
+('101',
+ '1', 
+ '02443456784',
+ '846788',
+ 'cfa',
+ '300',
+ 'cfa',
+ '300',
+ 'meaux_meaux',
+ '0246839554',
+ '39554',
+ '2008-03-19 05:17:00');
+
+CREATE TABLE agents (
+agent_id integer PRIMARY KEY,
+name text,
+country text NOT NULL,
+region text,
+city text,
+subcity text,
+when_created timestamp without time zone NOT NULL
+
+);
+
+INSERT INTO agents
+(agent_id,
+name ,
+country ,
+region ,
+city ,
+subcity ,
+when_created);
+VALUES
+('111',
+'Crue',
+'Ghana' ,
+'Western' ,
+'Sekondi' ,
+'Komfoase' ,
+'2009-13-12 02:10:00');
+
+CREATE TABLE agent_transactions (
+atx_id integer PRIMARY KEY,
+u_id integer NOT NULL,
+agent_id integer NOT NULL,
+amount numeric NOT NULL,
+fee_amount_scalar numeric NOT NULL,
+when_created timestamp without time zone NOT NULL
+
+);
+
+INSERT INTO agent_transactions
+(atx_id,
+u_id ,
+agent_id,
+amount,
+fee_amount_scalar ,
+when_created)
+VALUES
+('121',
+'1' ,
+'111',
+'300',
+'0.30' ,
+'2020-23-07 02:10:00');
+
+CREATE TABLE wallets (
+wallet_id integer PRIMARY KEY,
+currency text NOT NULL,
+ledger_location text NOT NULL,
+when_created timestamp without time zone NOT NULL
+
+);
+
+INSERT INTO wallets
+(wallet_id,
+currency,
+ledger_location ,
+when_created)
+VALUES
+('131',
+'cfa',
+'sekondi' ,
+'2009-13-12 02:10:00');
+
+
+
+-- 1. These queries answer the questions from the assignment
+-- No. of users on wave
+SELECT COUNT(u_id) FROM users;
+
+-- 2. Transfers sent in in CFA
+SELECT COUNT (transfer_id) FROM transfers WHERE send_amount_currency = 'cfa';
+
+-- 3. No. of different users who have sent a transfer in CFA
+SELECT COUNT(u_id) FROM transfers WHERE send_amount_currency = 'cfa';
+
+-- 4. No. of agent_transactions for months of 2018
+SELECT COUNT (atx_id) FROM agent_transaction WHERE when_created = 2018 GROUP BY MONTH (when_created);
+
+-- 5. “net depositors” vs. “net withdrawers”
+WITH agentwithdrawers AS SELECT COUNT(agent_id) AS netwithdrawers FROM agent_transactions HAVING COUNT(amount)IN (SELECT COUNT(amount) 
+FROM agent_transactions WHERE amount > -1 AND amount !=0 HAVING COUNT(amount)>(SELECT COUNT(amount)
+FROM agent_transactions WHERE amount < 1 AND amount !=0)))  SELECT netwithdrawers FROM agentwithdrawers
+
+--6. “atx volume city summary” table
+SELECT agents.city, COUNT (amount) FROM agent_transactions INNER JOIN agents ON agents.agent_id = agent_transactions.agent_id
+WHERE agent_transactions.when_created > current_date - interval '7 days' GROUP BY agents.city;
+
+--7. atx volume by country
+SELECT City, Volume, Country INTO atx_volume_city_summary_with_Country
+FROM( Select agents.city AS City, agents.country AS Country, count(agent_transactions.atx_id)
+AS Volume FROM agents INNER JOIN agent_transactions ON agents.agent_id =agent_transactions.agent_id
+where (agent_transactions.when_created > (NOW() - INTERVAL '1 week')) GROUP BY agents.country,agents.city) as atx_volume_summary_with_Country;
+
+
+--8.“send volume by country and kind” table:
+
+SELECT w.ledger_location as "country",tn.send_amount_currency AS "kind",
+SUM(tn.send_amount_scalar) AS "volume" FROM transfers AS tn INNER JOIN wallets AS w ON tn.transfer_id =w.wallet_id
+WHERE tn. when_created = CURRENT_DATE-INTERVAL '1 week' GROUP By w.ledger_location,tn.send_amount_currency
+
+
+--9. columns for transaction count and number of unique sender
+SELECT COUNT(transfers.source_wallet_id) AS Unique_Senders, COUNT (transfer_id)
+AS Transactions_Count,transfers.kind AS Transfer_kind,wallets.ledger_location AS Country,
+SUM(transfers.send_amount_scalar) AS Volume FROM transfers INNER JOIN WALLETS ON transfers.source_wallet_id = wallets.wallet_id
+WHERE (transfers.when_created> (NOW()-INTERVAL '1 week')) GROUP BY wallets.ledger_location, transfers.kind;
+
+
+--10.which wallets have sent more than 10,000,000 CFA in transfers in the last month
+SELECT source_wallet_id, send_amount_scalar FROM transfers 
+WHERE send_amount_currency = 'CFA' AND (send_amount_scalar>10000000) AND (transfers.when_created > (NOW() - INTERVAL '1 month'));
+
+
